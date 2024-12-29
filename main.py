@@ -3,6 +3,7 @@ import getpass
 import json
 import logging
 import os
+import urllib
 from datetime import datetime, timedelta
 
 # Python 2 and 3 compatibility
@@ -34,6 +35,42 @@ class PewCapital(PersonalCapital):
         with open(self.__session_file, 'w') as data_file:
             data_file.write(json.dumps(self.get_session()))
 
+class TransactionCategoryEnum(object):
+    # Incomplete list
+    RESTAURANTS = 35
+
+class PewCapitalAPI(PewCapital):
+    """
+    Adds API calls to PewCapital.
+    """
+    def createUserTransaction(self, transactionDate, userAccountId, description, transactionCategoryId, amount, customTags):
+        """
+        transactionDate (str): YYYY-MM-DD
+        userAccountId (int): integer ID for account on which transaction should be posted.
+        description (str): string description
+        transactionCategoryId (int): integer TransactionCategoryEnum
+        amount (float): transaction amount.
+        """
+        # Limit char length for readability
+        if len(description) > 39:
+            logging.warning('Shortening description for readability: {description}')
+            description = description[:39]
+        amount = f'{amount:.2f}'
+        customTags = f'[{",".join(str(x) for x in customTags)}]'
+        data = {
+            'transactionDate': transactionDate,
+            'userAccountId': userAccountId,
+            'description': description,
+            'transactionCategoryId': transactionCategoryId,
+            'amount': amount,
+            'customTags': customTags
+        }
+        try:
+            return self.fetch('/transaction/createUserTransaction', data)
+        except Exception as e:
+            logging.error('create user transaction failed', e)
+            raise
+
 def get_email():
     email = os.getenv('PEW_EMAIL')
     if not email:
@@ -49,7 +86,7 @@ def get_password():
 
 def main():
     email, password = get_email(), get_password()
-    pc = PewCapital()
+    pc = PewCapitalAPI()
     pc.load_session()
 
     try:
@@ -82,6 +119,7 @@ def main():
 
     transactions = transactions_response.json()['spData']
     print('Number of transactions between {0} and {1}: {2}'.format(transactions['startDate'], transactions['endDate'], len(transactions['transactions'])))
+    return pc
 
 if __name__ == '__main__':
-    main()
+    pc = main()
